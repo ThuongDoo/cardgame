@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Card Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,500;0,600;0,700;0,800;1,500&family=Cinzel:wght@700&display=swap" rel="stylesheet" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+<style>
+  :root {
+    --bg: #14171c; --panel: #1d2128; --line: #2c323c; --text: #e7eaee; --muted: #8b94a3; --accent: #7cc24a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: "Barlow", system-ui, sans-serif; }
+  .app { display: grid; grid-template-columns: 400px 1fr; min-height: 100vh; }
+  @media (max-width: 900px) { .app { grid-template-columns: 1fr; } }
+
+  /* ---------- Editor panel ---------- */
+  .panel { background: var(--panel); border-right: 1px solid var(--line); padding: 20px; overflow-y: auto; max-height: 100vh; }
+  @media (max-width: 900px) { .panel { max-height: none; border-right: 0; order: 2; } }
+  .panel h1 { font-size: 20px; margin: 0 0 16px; }
+  .group { border-top: 1px solid var(--line); padding: 14px 0; }
+  .group h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 8px 0 4px; }
+  input[type=text], input[type=number], textarea, select {
+    width: 100%; background: #12151a; color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 8px 10px; font: inherit; font-size: 14px;
+  }
+  textarea { resize: vertical; min-height: 70px; }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .colors3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=color] { width: 100%; height: 36px; border: 1px solid var(--line); border-radius: 6px; background: #12151a; padding: 2px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
+    background: var(--accent); color: #0d1a05; border: 0; border-radius: 8px; padding: 10px 14px;
+    font: inherit; font-weight: 700; cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 600; }
+  .btn.small { padding: 7px 10px; font-size: 13px; margin-top: 8px; }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); margin-top: 10px; }
+
+  .tier-grid button:hover { border-color: var(--muted); }
+  .tier-grid button.on { border-color: var(--accent); background: #1b2a17; }
+
+  /* rarity tiers */
+  .tier-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .tier-grid button { background: #12151a; border: 1px solid var(--line); border-radius: 8px; padding: 8px 4px;
+    cursor: pointer; color: var(--text); font: inherit; font-weight: 800; font-size: 14px; letter-spacing: .04em;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .tier-grid .bar { width: 100%; height: 6px; border-radius: 3px; }
+
+  /* color overrides */
+  .override { display: grid; grid-template-columns: 1fr 64px; gap: 10px; align-items: center; margin-top: 8px; }
+  .override .check { margin: 0; }
+  .override input[type=color] { height: 30px; }
+  .override input[type=color]:disabled { opacity: .35; }
+
+  /* ---------- Preview ---------- */
+  .stage { display: flex; align-items: center; justify-content: center; padding: 24px; min-height: 100vh; }
+  @media (max-width: 900px) { .stage { min-height: auto; padding: 16px; } }
+  .scaler { transform-origin: top left; }
+
+  /* ---------- Card (fixed 736 x 1031) ---------- */
+  .card {
+    position: relative; width: 736px; height: 1031px; border-radius: 22px; overflow: hidden;
+    background: #0e1a12; color: #fff; font-family: "Barlow", sans-serif; user-select: none;
+  }
+  .card > *:not(.art) { pointer-events: none; } /* overlays let drags reach the art layer */
+  .art { position: absolute; inset: 0; overflow: hidden; cursor: grab; }
+  .art.dragging { cursor: grabbing; }
+  .art img { position: absolute; max-width: none; pointer-events: none; }
+  .art .placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 35%, #3f6b3a, #12261a 70%); color: rgba(255,255,255,.55); font-size: 28px; font-weight: 600; }
+  .shade-top { position: absolute; left: 0; right: 0; top: 0; height: 200px; }
+  .shade { position: absolute; left: 0; right: 0; bottom: 0; height: 560px; }
+  .frame { position: absolute; left: 0; top: 0; width: 736px; height: 1031px; }
+  .icon-img { position: absolute; }
+  .spk { display: inline-block; flex: none; }
+
+
+
+  /* title ribbon */
+  .ribbon { position: absolute; left: 34px; right: 34px; top: 704px; height: 72px; border-radius: 36px; }
+  .ribbon-line { position: absolute; left: 90px; right: 90px; height: 2px; }
+  .title { position: absolute; left: 40px; right: 40px; top: 624px; height: 72px; line-height: 72px; text-align: center;
+    font-family: "Cinzel", serif; font-size: 40px; font-weight: 700; white-space: nowrap; letter-spacing: .02em; }
+  .title-wrap { position: absolute; left: 40px; right: 40px; top: 704px; height: 72px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.55)); }
+  .title-wrap .title { left: 0; right: 0; top: 0; }
+
+  /* text box */
+  .box { position: absolute; left: 50px; top: 801px; width: 636px; height: 170px; }
+  .stars { position: absolute; left: 0; right: 0; top: 787px; display: flex; justify-content: center; }
+  .stars-inner { display: flex; gap: 6px; padding: 2px 14px; border-radius: 16px; }
+  .text-wrap { position: absolute; inset: 0; filter: drop-shadow(0 1px 2px rgba(0,0,0,.6)); }
+  .desc { position: absolute; left: 84px; right: 84px; top: 836px; font-size: 17px; font-weight: 600; line-height: 1.4; text-align: center; }
+  .flavor { position: absolute; left: 84px; right: 84px; bottom: 82px; font-size: 18px; font-weight: 500; font-style: italic;
+    line-height: 1.35; text-align: center; opacity: .82; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ================= EDITOR ================= -->
+  <aside class="panel">
+    <h1>Card Maker</h1>
+
+    <div class="group">
+      <h2>Ảnh</h2>
+      <input type="file" id="file" accept="image/*" hidden>
+      <button class="btn ghost" id="pick">Chọn ảnh…</button>
+      <label>Phóng to: <b id="zoomVal">100%</b></label>
+      <input type="range" id="zoom" min="100" max="300" value="100">
+      <div class="btns">
+        <button class="btn ghost" id="resetPos">Căn giữa lại</button>
+        <button class="btn ghost" id="removeImg">Xoá ảnh</button>
+      </div>
+      <div class="hint">Kéo ảnh trên thẻ để di chuyển, cuộn chuột để phóng to.</div>
+    </div>
+
+    <div class="group">
+      <h2>Độ hiếm (màu viền, chữ, sao)</h2>
+      <div class="tier-grid" id="tierGrid"></div>
+      <label>Kiểu màu của bậc <b id="tierName"></b></label>
+      <select id="tierType">
+        <option value="solid">Đơn sắc</option>
+        <option value="gradient">Gradient</option>
+      </select>
+      <div class="colors3" style="margin-top:8px">
+        <div><label>Màu 1</label><input type="color" id="tc0"></div>
+        <div class="grad-only"><label>Màu 2</label><input type="color" id="tc1"></div>
+        <div class="grad-only"><label>Màu 3</label><input type="color" id="tc2"></div>
+      </div>
+      <button class="btn ghost small" id="tierReset">Màu mặc định của bậc này</button>
+    </div>
+
+    <div class="group">
+      <h2>Màu riêng (đè lên màu độ hiếm)</h2>
+      <div class="override">
+        <label class="check"><input type="checkbox" id="titleColorOn"> Tên thẻ</label>
+        <input type="color" id="titleColor">
+      </div>
+      <div class="override">
+        <label class="check"><input type="checkbox" id="textColorOn"> Mô tả & lời dẫn</label>
+        <input type="color" id="textColor">
+      </div>
+      <div class="override">
+        <label class="check"><input type="checkbox" id="iconColorOn"> Ngôi sao</label>
+        <input type="color" id="iconColor">
+      </div>
+      <div class="hint">Bỏ tick để quay lại theo màu độ hiếm.</div>
+    </div>
+
+    <div class="group">
+      <h2>Chỉ số</h2>
+      <label>Sao độ hiếm</label><input type="number" id="rarity" min="0" max="7">
+    </div>
+
+    <div class="group">
+      <h2>Tiêu đề</h2>
+      <label>Tên thẻ</label><input type="text" id="title">
+      <label>Cỡ chữ tên</label><input type="number" id="titleSize" min="20" max="64">
+    </div>
+
+    <div class="group">
+      <h2>Nội dung</h2>
+      <label>Mô tả <span id="descCount"></span></label><textarea id="desc" rows="2" maxlength="90"></textarea>
+      <label>Lời dẫn (in nghiêng) <span id="flavorCount"></span></label><textarea id="flavor" rows="2" maxlength="60"></textarea>
+      <div class="hint">Viết ngắn: mô tả tối đa 90 ký tự, lời dẫn tối đa 60 ký tự.</div>
+      <label>Cỡ chữ nội dung</label><input type="number" id="bodySize" min="12" max="28">
+    </div>
+
+    <div class="group">
+      <h2>Độ đậm nền</h2>
+      <label>Nền sau hàng sao độ hiếm: <b id="opIconVal"></b></label>
+      <input type="range" id="opIcon" min="0" max="100">
+      <label>Dải tên thẻ: <b id="opRibbonVal"></b></label>
+      <input type="range" id="opRibbon" min="0" max="100">
+      <label>Ô nội dung: <b id="opBoxVal"></b></label>
+      <input type="range" id="opBox" min="0" max="100">
+      <label>Lớp tối phủ ảnh (trên & dưới): <b id="opShadeVal"></b></label>
+      <input type="range" id="opShade" min="0" max="100">
+    </div>
+
+    <div class="group">
+      <h2>Lưu</h2>
+      <button class="btn" id="exportPng">Tải ảnh PNG</button>
+      <div class="btns">
+        <button class="btn ghost" id="saveJson">Lưu dữ liệu (.json)</button>
+        <button class="btn ghost" id="loadJson">Mở dữ liệu…</button>
+      </div>
+      <input type="file" id="jsonFile" accept="application/json,.json" hidden>
+      <button class="btn ghost" id="resetAll" style="margin-top:10px">Khôi phục mặc định</button>
+    </div>
+  </aside>
+
+  <!-- ================= PREVIEW ================= -->
+  <main class="stage" id="stage">
+    <div id="sizer">
+      <div class="scaler" id="scaler">
+        <div class="card" id="card">
+          <div class="art" id="art">
+            <div class="placeholder" id="placeholder">Chọn ảnh để bắt đầu</div>
+            <img id="artImg" alt="" hidden>
+          </div>
+          <div class="shade-top" id="shadeTop"></div>
+          <div class="shade" id="shadeBot"></div>
+
+
+
+          <div class="ribbon" id="ribbon"></div>
+          <div class="ribbon-line" id="lineTop" style="top:705px"></div>
+          <div class="ribbon-line" id="lineBot" style="top:773px"></div>
+          <div class="title-wrap"><div class="title" id="vTitle"></div></div>
+
+          <svg class="box" id="box" viewBox="0 0 636 170"></svg>
+          <div class="stars"><div class="stars-inner" id="vStars"></div></div>
+          <div class="text-wrap">
+            <div class="desc" id="vDesc"></div>
+            <div class="flavor" id="vFlavor"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(() => {
+  const W = 736, H = 1031;
+  const $ = id => document.getElementById(id);
+
+  // ---------- SVG helpers ----------
+  const sparklePath = (r, cx = 0, cy = 0) => {
+    const k = r * 0.16, P = (x, y) => `${cx + x} ${cy + y}`;
+    return `M${P(0, -r)} C${P(k, -k)} ${P(k, -k)} ${P(r, 0)} C${P(k, k)} ${P(k, k)} ${P(0, r)} C${P(-k, k)} ${P(-k, k)} ${P(-r, 0)} C${P(-k, -k)} ${P(-k, -k)} ${P(0, -r)}Z`;
+  };
+  const toUrl = body => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="#fff">${body}</svg>`);
+  const SPARKLE_URL = toUrl(`<path d="${sparklePath(50, 50, 50)}"/>`);
+
+  // ---------- Rarity tiers ----------
+  const TIER_KEYS = ["R", "SR", "SSR", "SSSR"];
+  const TIER_VERSION = 4;   // bump to reset everyone's saved rarity colors
+  const TIER_DEFAULTS = {
+    R:    { type: "solid",    c: ["#ffffff", "#ffffff", "#ffffff"] },  // trắng
+    SR:   { type: "solid",    c: ["#5ce1e6", "#ffffff", "#ffffff"] },  // cyan dịu
+    SSR:  { type: "gradient", c: ["#fff1a8", "#ffc23d", "#ff8a2b"] },  // vàng → cam
+    SSSR: { type: "gradient", c: ["#ff6fae", "#ffe066", "#5ee7ff"] },  // cầu vồng
+  };
+  // a "paint" = { grad, c:[...] } ; solid paints only use c[0]
+  const solid = color => ({ grad: false, c: [color, color, color] });
+  const tierPaint = t => ({ grad: t.type === "gradient", c: t.c });
+  const cssPaint = p => p.grad ? `linear-gradient(135deg, ${p.c[0]}, ${p.c[1]}, ${p.c[2]})` : p.c[0];
+  const svgDefs = (id, p) => p.grad
+    ? `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1">
+         <stop offset="0" stop-color="${p.c[0]}"/><stop offset=".5" stop-color="${p.c[1]}"/><stop offset="1" stop-color="${p.c[2]}"/>
+       </linearGradient></defs>` : "";
+  const svgPaint = (id, p) => p.grad ? `url(#${id})` : p.c[0];
+
+  // paint text: solid -> color, gradient -> clipped background
+  function paintText(el, p) {
+    if (p.grad) {
+      el.style.backgroundImage = cssPaint(p);
+      el.style.webkitBackgroundClip = el.style.backgroundClip = "text";
+      el.style.color = "transparent";
+    } else {
+      el.style.backgroundImage = "none";
+      el.style.webkitBackgroundClip = el.style.backgroundClip = "border-box";
+      el.style.color = p.c[0];
+    }
+  }
+  const sparkle = (size, p) =>
+    `<i class="spk" style="width:${size}px;height:${size}px;background:${cssPaint(p)};` +
+    `-webkit-mask:url('${SPARKLE_URL}') center/contain no-repeat;mask:url('${SPARKLE_URL}') center/contain no-repeat"></i>`;
+
+  // ---------- State ----------
+  const DEFAULTS = {
+    v: TIER_VERSION, tier: "R", tiers: structuredClone(TIER_DEFAULTS),
+    titleColorOn: false, titleColor: "#ffffff",
+    textColorOn: false, textColor: "#ffffff",
+    iconColorOn: false, iconColor: "#ffffff",
+    rarity: 3,
+    title: "Dân làng", titleSize: 40,
+    desc: "Ban ngày cùng cả làng bỏ phiếu tìm ra Sói.",
+    flavor: "Một lá phiếu có thể cứu cả ngôi làng.",
+    bodySize: 17,
+    opIcon: 82, opRibbon: 90, opBox: 70, opShade: 90,
+    image: null, zoom: 1, offX: 0, offY: 0
+  };
+  function merge(v) {
+    const d = structuredClone(DEFAULTS);
+    // older saves: rarity colors are reset to the current defaults once
+    const tiers = (v.v || 0) < TIER_VERSION ? d.tiers : { ...d.tiers, ...(v.tiers || {}) };
+    return { ...d, ...v, tiers, v: TIER_VERSION };
+  }
+  function load() {
+    try { const v = JSON.parse(localStorage.getItem("cardMaker")); return v ? merge(v) : null; }
+    catch (e) { return null; }
+  }
+  function save() { try { localStorage.setItem("cardMaker", JSON.stringify(state)); } catch (e) {} }
+  let state = load() || structuredClone(DEFAULTS);
+
+
+  // ---------- Render ----------
+  function render() {
+    const s = state;
+    const t = s.tiers[s.tier] || TIER_DEFAULTS.R;
+    const tp = tierPaint(t);                                     // rarity paint (lines, borders)
+    const titleP = s.titleColorOn ? solid(s.titleColor) : tp;
+    const textP  = s.textColorOn  ? solid(s.textColor)  : tp;
+    const iconP  = s.iconColorOn  ? solid(s.iconColor)  : tp;
+    const oi = s.opIcon / 100, or = s.opRibbon / 100, ob = s.opBox / 100, os = s.opShade / 100;
+
+
+
+
+    // rarity stars on the text box edge
+    const rc = +s.rarity || 0;
+    $("vStars").innerHTML = Array.from({length: rc}, () => sparkle(26, iconP)).join("");
+    $("vStars").style.display = rc ? "" : "none";
+    $("vStars").style.background = `rgba(11,21,15,${oi})`;
+
+    // title ribbon + its two thin lines
+    const a = "#050c09";   // same dark tone as the image shade
+    $("ribbon").style.background =
+      `linear-gradient(to right, ${hexA(a, 0)} 0%, ${hexA(a, .83 * or)} 25%, ${hexA(a, or)} 50%, ${hexA(a, .83 * or)} 75%, ${hexA(a, 0)} 100%)`;
+    ["lineTop", "lineBot"].forEach(id => {
+      const el = $(id);
+      el.style.background = cssPaint(tp);
+      const fade = "linear-gradient(to right, transparent, #000 30%, #000 70%, transparent)";
+      el.style.webkitMaskImage = el.style.maskImage = fade;
+    });
+
+    // text box
+    $("box").innerHTML = svgDefs("gBox", tp) +
+      `<rect x=".75" y=".75" width="634.5" height="168.5" rx="28" fill="rgba(6,14,10,${ob})"
+             stroke="${svgPaint("gBox", tp)}" stroke-opacity=".6" stroke-width="1.5"/>`;
+
+    // texts
+    $("vTitle").textContent = s.title;
+    $("vTitle").style.fontSize = s.titleSize + "px";
+    $("vDesc").textContent = s.desc;
+    $("vFlavor").textContent = s.flavor;
+    $("vDesc").style.fontSize = $("vFlavor").style.fontSize = s.bodySize + "px";
+    paintText($("vTitle"), titleP);
+    paintText($("vDesc"), textP);
+    paintText($("vFlavor"), textP);
+
+    // image shades
+    $("shadeTop").style.background = `linear-gradient(to bottom, rgba(5,12,9,${.6 * os}), rgba(5,12,9,0))`;
+    $("shadeBot").style.background =
+      `linear-gradient(to bottom, rgba(5,12,9,0) 0%, rgba(5,12,9,${.65 * os}) 40%, rgba(5,12,9,${os}) 100%)`;
+
+    // ---- panel state ----
+    $("descCount").textContent = `(${s.desc.length}/90)`;
+    $("flavorCount").textContent = `(${s.flavor.length}/60)`;
+    ["opIcon", "opRibbon", "opBox", "opShade"].forEach(k => $(k + "Val").textContent = s[k] + "%");
+    $("tierName").textContent = s.tier;
+    [...$("tierGrid").children].forEach((b, i) => {
+      const k = TIER_KEYS[i];
+      b.classList.toggle("on", k === s.tier);
+      b.querySelector(".bar").style.background = cssPaint(tierPaint(s.tiers[k]));
+    });
+    $("tierType").value = t.type;
+    t.c.forEach((c, i) => $("tc" + i).value = c);
+    document.querySelectorAll(".grad-only").forEach(el => el.style.visibility = tp.grad ? "" : "hidden");
+    $("titleColor").disabled = !s.titleColorOn;
+    $("textColor").disabled = !s.textColorOn;
+    $("iconColor").disabled = !s.iconColorOn;
+
+    drawImage();
+  }
+
+  function hexA(hex, a) {
+    const m = hex.replace("#", "");
+    const v = parseInt(m.length === 3 ? m.split("").map(c => c + c).join("") : m, 16);
+    return `rgba(${v >> 16 & 255},${v >> 8 & 255},${v & 255},${a})`;
+  }
+
+  // ---------- Rarity tier picker ----------
+  TIER_KEYS.forEach(k => {
+    const b = document.createElement("button");
+    b.innerHTML = `<span>${k}</span><i class="bar"></i>`;
+    b.onclick = () => { state.tier = k; render(); save(); };
+    $("tierGrid").appendChild(b);
+  });
+  const curTier = () => state.tiers[state.tier];
+  $("tierType").onchange = e => { curTier().type = e.target.value; render(); save(); };
+  [0, 1, 2].forEach(i => $("tc" + i).addEventListener("input", e => { curTier().c[i] = e.target.value; render(); save(); }));
+  $("tierReset").onclick = () => { state.tiers[state.tier] = structuredClone(TIER_DEFAULTS[state.tier]); render(); save(); };
+
+  // ---------- Image ----------
+  const img = $("artImg");
+  function drawImage() {
+    if (!state.image) { img.hidden = true; $("placeholder").style.display = ""; return; }
+    $("placeholder").style.display = "none";
+    if (img.src !== state.image) { img.src = state.image; img.onload = () => drawImage(); return; }
+    if (!img.naturalWidth) return;
+    img.hidden = false;
+    const base = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+    const sc = base * state.zoom;
+    const w = img.naturalWidth * sc, h = img.naturalHeight * sc;
+    const maxX = (w - W) / 2, maxY = (h - H) / 2;
+    state.offX = Math.max(-maxX, Math.min(maxX, state.offX));
+    state.offY = Math.max(-maxY, Math.min(maxY, state.offY));
+    img.style.width = w + "px";
+    img.style.height = h + "px";
+    img.style.left = (W - w) / 2 + state.offX + "px";
+    img.style.top = (H - h) / 2 + state.offY + "px";
+    $("zoom").value = Math.round(state.zoom * 100);
+    $("zoomVal").textContent = Math.round(state.zoom * 100) + "%";
+  }
+
+  $("pick").onclick = () => $("file").click();
+  $("file").onchange = e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => { state.image = reader.result; state.zoom = 1; state.offX = state.offY = 0; render(); save(); };
+    reader.readAsDataURL(f);
+    e.target.value = "";
+  };
+  $("zoom").oninput = e => { state.zoom = e.target.value / 100; drawImage(); save(); };
+  $("resetPos").onclick = () => { state.zoom = 1; state.offX = state.offY = 0; drawImage(); save(); };
+  $("removeImg").onclick = () => { state.image = null; render(); save(); };
+
+  // drag to pan
+  const art = $("art");
+  let drag = null;
+  art.addEventListener("pointerdown", e => {
+    if (!state.image) { $("file").click(); return; }
+    drag = { x: e.clientX, y: e.clientY, ox: state.offX, oy: state.offY };
+    art.setPointerCapture(e.pointerId);
+    art.classList.add("dragging");
+  });
+  art.addEventListener("pointermove", e => {
+    if (!drag) return;
+    state.offX = drag.ox + (e.clientX - drag.x) / scale;
+    state.offY = drag.oy + (e.clientY - drag.y) / scale;
+    drawImage();
+  });
+  const endDrag = () => { if (drag) { drag = null; art.classList.remove("dragging"); save(); } };
+  art.addEventListener("pointerup", endDrag);
+  art.addEventListener("pointercancel", endDrag);
+  $("card").addEventListener("wheel", e => {
+    if (!state.image) return;
+    e.preventDefault();
+    state.zoom = Math.max(1, Math.min(3, state.zoom * (e.deltaY < 0 ? 1.06 : 1 / 1.06)));
+    drawImage(); save();
+  }, { passive: false });
+
+  // ---------- Form binding ----------
+  const fields = ["rarity","title","titleSize","desc","flavor","bodySize",
+                  "titleColorOn","titleColor","textColorOn","textColor","iconColorOn","iconColor",
+                  "opIcon","opRibbon","opBox","opShade"];
+  function fillForm() {
+    fields.forEach(k => {
+      const el = $(k);
+      if (el.type === "checkbox") el.checked = !!state[k]; else el.value = state[k];
+    });
+  }
+  fields.forEach(k => {
+    $(k).addEventListener("input", e => {
+      const el = e.target;
+      state[k] = el.type === "checkbox" ? el.checked : (el.type === "number" || el.type === "range") ? (+el.value || 0) : el.value;
+      render(); save();
+    });
+  });
+
+  // ---------- Save / load ----------
+  const fileName = () => (state.title || "card").trim().replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_");
+  const download = (href, name) => { const a = document.createElement("a"); a.href = href; a.download = name; a.click(); };
+
+  $("saveJson").onclick = () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    download(url, fileName() + ".json");
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  $("loadJson").onclick = () => $("jsonFile").click();
+  $("jsonFile").onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    f.text().then(t => { state = merge(JSON.parse(t)); fillForm(); render(); save(); })
+           .catch(() => alert("File JSON không hợp lệ"));
+    e.target.value = "";
+  };
+  $("resetAll").onclick = () => {
+    if (!confirm("Khôi phục toàn bộ về mặc định?")) return;
+    state = structuredClone(DEFAULTS); fillForm(); render(); save();
+  };
+
+  // ---------- Export PNG ----------
+  $("exportPng").onclick = async () => {
+    const btn = $("exportPng");
+    btn.disabled = true; btn.textContent = "Đang xuất…";
+    const scaler = $("scaler"), prev = scaler.style.transform;
+    try {
+      await document.fonts.ready;
+      scaler.style.transform = "none";   // capture at native size
+      const url = await htmlToImage.toPng($("card"), { pixelRatio: 2, width: W, height: H });
+      download(url, fileName() + ".png");
+    } catch (err) {
+      alert("Xuất ảnh thất bại: " + (err && err.message || err));
+    } finally {
+      scaler.style.transform = prev;
+      btn.disabled = false; btn.textContent = "Tải ảnh PNG";
+    }
+  };
+
+  // ---------- Responsive scaling ----------
+  let scale = 1;
+  function fit() {
+    const stage = $("stage");
+    const narrow = window.innerWidth <= 900;
+    const availW = stage.clientWidth - (narrow ? 32 : 48);
+    const availH = narrow ? Infinity : window.innerHeight - 48;
+    scale = Math.min(1, availW / W, availH / H);
+    $("scaler").style.transform = `scale(${scale})`;
+    $("sizer").style.width = W * scale + "px";
+    $("sizer").style.height = H * scale + "px";
+  }
+  window.addEventListener("resize", fit);
+
+  fillForm(); render(); fit();
+})();
+</script>
+</body>
+</html>
