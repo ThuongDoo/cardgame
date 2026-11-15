@@ -6,7 +6,7 @@
 <title>Card Maker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,500;0,600;0,700;0,800;1,500&family=Cinzel:wght@700&display=swap" rel="stylesheet" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,500;0,600;0,700;0,800;1,500&family=Playfair+Display+SC:wght@700&display=swap" rel="stylesheet" crossorigin="anonymous">
 <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
 <style>
   :root {
@@ -89,7 +89,7 @@
   .ribbon { position: absolute; left: 34px; right: 34px; top: 704px; height: 72px; border-radius: 36px; }
   .ribbon-line { position: absolute; left: 90px; right: 90px; height: 2px; }
   .title { position: absolute; left: 40px; right: 40px; top: 624px; height: 72px; line-height: 72px; text-align: center;
-    font-family: "Cinzel", serif; font-size: 40px; font-weight: 700; white-space: nowrap; letter-spacing: .02em; }
+    font-family: "Playfair Display SC", serif; font-size: 40px; font-weight: 700; white-space: nowrap; letter-spacing: .02em; }
   .title-wrap { position: absolute; left: 40px; right: 40px; top: 704px; height: 72px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.55)); }
   .title-wrap .title { left: 0; right: 0; top: 0; }
 
@@ -168,9 +168,9 @@
 
     <div class="group">
       <h2>Nội dung</h2>
-      <label>Mô tả <span id="descCount"></span></label><textarea id="desc" rows="2" maxlength="90"></textarea>
-      <label>Lời dẫn (in nghiêng) <span id="flavorCount"></span></label><textarea id="flavor" rows="2" maxlength="60"></textarea>
-      <div class="hint">Viết ngắn: mô tả tối đa 90 ký tự, lời dẫn tối đa 60 ký tự.</div>
+      <label>Mô tả <span id="descCount"></span></label><textarea id="desc" rows="2"></textarea>
+      <label>Lời dẫn (in nghiêng) <span id="flavorCount"></span></label><textarea id="flavor" rows="2"></textarea>
+      <div class="hint">Nên viết ngắn: mô tả khoảng 90 ký tự, lời dẫn khoảng 60 ký tự (bộ đếm chuyển đỏ khi quá dài).</div>
       <label>Cỡ chữ nội dung</label><input type="number" id="bodySize" min="12" max="28">
     </div>
 
@@ -357,8 +357,9 @@
       `linear-gradient(to bottom, rgba(5,12,9,0) 0%, rgba(5,12,9,${.65 * os}) 40%, rgba(5,12,9,${os}) 100%)`;
 
     // ---- panel state ----
-    $("descCount").textContent = `(${s.desc.length}/90)`;
-    $("flavorCount").textContent = `(${s.flavor.length}/60)`;
+    const cnt = (id, len, max) => { const el = $(id); el.textContent = `(${len}/${max})`; el.style.color = len > max ? "#ff6b6b" : ""; };
+    cnt("descCount", s.desc.length, 90);
+    cnt("flavorCount", s.flavor.length, 60);
     ["opIcon", "opRibbon", "opBox", "opShade"].forEach(k => $(k + "Val").textContent = s[k] + "%");
     $("tierName").textContent = s.tier;
     [...$("tierGrid").children].forEach((b, i) => {
